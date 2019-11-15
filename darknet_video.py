@@ -3,9 +3,11 @@ import math
 import random
 import os
 import cv2
+import gc
 import numpy as np
 import time
 import darknet
+import psutil
 
 def convertBack(x, y, w, h):
     xmin = int(round(x - (w / 2)))
@@ -79,7 +81,6 @@ def YOLO():
                     pass
         except Exception:
             pass
-    #cap = cv2.VideoCapture(0)
     cap = cv2.VideoCapture("test.mp4")
     cap.set(3, 1280)
     cap.set(4, 720)
@@ -91,8 +92,11 @@ def YOLO():
     # Create an image we reuse for each detect
     darknet_image = darknet.make_image(darknet.network_width(netMain),
                                     darknet.network_height(netMain),3)
-    while True:
-        prev_time = time.time()
+    end_time = time.time() + 2400
+    total_loss = 0
+    i = 0
+    while end_time > time.time():
+        i += 1
         ret, frame_read = cap.read()
         frame_rgb = cv2.cvtColor(frame_read, cv2.COLOR_BGR2RGB)
         frame_resized = cv2.resize(frame_rgb,
@@ -102,12 +106,26 @@ def YOLO():
 
         darknet.copy_image_from_bytes(darknet_image,frame_resized.tobytes())
 
+        memory_single_start = psutil.virtual_memory().free
+        print("Memory free before {} detection: {}".format(i + 1, memory_single_start))
         detections = darknet.detect_image(netMain, metaMain, darknet_image, thresh=0.25)
-        image = cvDrawBoxes(detections, frame_resized)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        print(1/(time.time()-prev_time))
-        cv2.imshow('Demo', image)
+        detections = None
+        del detections
+        gc.collect()
+        total_loss += memory_single_start - psutil.virtual_memory().free
+        print("Memory free after {} detection: {}, loss {}\n".format(i + 1,
+                                                                     psutil.virtual_memory().free,
+                                                                     memory_single_start -
+                                                                     psutil.virtual_memory().free))
+
+
+        memory_single_start = psutil.virtual_memory().free
         cv2.waitKey(3)
+        total_loss += memory_single_start - psutil.virtual_memory().free
+
+    print("\n")
+    print("Memory leak after all detections: {}".format(total_loss))
+
     cap.release()
     out.release()
 
