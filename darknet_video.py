@@ -8,6 +8,7 @@ import numpy as np
 import time
 import darknet
 import psutil
+from guppy import hpy
 
 def convertBack(x, y, w, h):
     xmin = int(round(x - (w / 2)))
@@ -92,9 +93,11 @@ def YOLO():
     # Create an image we reuse for each detect
     darknet_image = darknet.make_image(darknet.network_width(netMain),
                                     darknet.network_height(netMain),3)
-    end_time = time.time() + 2400
+    end_time = time.time() + 40
     total_loss = 0
     i = 0
+    h = hpy()
+    memory_total_start = psutil.virtual_memory().free
     while end_time > time.time():
         i += 1
         ret, frame_read = cap.read()
@@ -117,11 +120,11 @@ def YOLO():
                                                                      psutil.virtual_memory().free,
                                                                      memory_single_start -
                                                                      psutil.virtual_memory().free))
+        if i % 10 == 0:
+            print(h.heap())
 
-
-        memory_single_start = psutil.virtual_memory().free
         cv2.waitKey(3)
-        total_loss += memory_single_start - psutil.virtual_memory().free
+        total_loss += memory_total_start - psutil.virtual_memory().free
 
     print("\n")
     print("Memory leak after all detections: {}".format(total_loss))
